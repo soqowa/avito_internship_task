@@ -15,5 +15,4 @@ vendor/
 
 .idea/
 .vscode/
-
-reviewer-svc
+.env
