@@ -6,10 +6,9 @@ import (
 	"log/slog"
 
 	chi "github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 
 	"github.com/user/reviewer-svc/internal/app/httpserver"
-	"github.com/user/reviewer-svc/internal/domain/pr"
+	domainpr "github.com/user/reviewer-svc/internal/domain/pr"
 )
 
 
@@ -36,11 +35,11 @@ func (h *Handler) CreatePR(w http.ResponseWriter, r *http.Request) {
 	var req CreatePRRequest
 	if err := httpserver.DecodeJSON(r, &req); err != nil {
 		h.log.Error("create pr: invalid JSON", "err", err)
-		httpserver.WriteError(w, http.StatusBadRequest, "bad_request", "invalid JSON", nil)
+		httpserver.WriteError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid JSON", nil)
 		return
 	}
 
-	pr, err := h.service.CreatePR(r.Context(), req.Title, req.AuthorID)
+	pr, err := h.service.CreatePRByID(r.Context(), req.PullRequestID, req.PullRequestName, req.AuthorID)
 	if err != nil {
 		status, code := httpserver.MapError(err)
 		h.log.Error("create pr failed", "err", err, "code", code)
@@ -48,7 +47,7 @@ func (h *Handler) CreatePR(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpserver.WriteJSON(w, http.StatusCreated, toResponse(*pr))
+	httpserver.WriteJSON(w, http.StatusCreated, CreatePRResponse{PR: toResponse(*pr)})
 }
 
 
@@ -61,9 +60,9 @@ func (h *Handler) CreatePR(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ListPRs(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 
-	var status *pr.PRStatus
+	var status *domainpr.PRStatus
 	if v := q.Get("status"); v != "" {
-		st := pr.PRStatus(v)
+		st := domainpr.PRStatus(v)
 		status = &st
 	}
 
@@ -92,14 +91,9 @@ func (h *Handler) ListPRs(w http.ResponseWriter, r *http.Request) {
 // @Failure     404   {object}  httpserver.ErrorResponse
 // @Router      /prs/{prId} [get]
 func (h *Handler) GetPR(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "prId")
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		httpserver.WriteError(w, http.StatusBadRequest, "bad_request", "invalid pr id", nil)
-		return
-	}
+	id := chi.URLParam(r, "prId")
 
-	pr, err := h.service.GetPR(r.Context(), id)
+	prResult, err := h.service.GetPRByID(r.Context(), id)
 	if err != nil {
 		status, code := httpserver.MapError(err)
 		h.log.Error("get pr failed", "err", err, "code", code)
@@ -107,7 +101,7 @@ func (h *Handler) GetPR(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpserver.WriteJSON(w, http.StatusOK, toResponse(*pr))
+	httpserver.WriteJSON(w, http.StatusOK, toResponse(*prResult))
 }
 
 
@@ -123,21 +117,14 @@ func (h *Handler) GetPR(w http.ResponseWriter, r *http.Request) {
 // @Failure     409   {object}  httpserver.ErrorResponse
 // @Router      /prs/{prId}/reassign [post]
 func (h *Handler) ReassignReviewer(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "prId")
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		httpserver.WriteError(w, http.StatusBadRequest, "bad_request", "invalid pr id", nil)
-		return
-	}
-
 	var req ReassignReviewerRequest
 	if err := httpserver.DecodeJSON(r, &req); err != nil {
 		h.log.Error("reassign reviewer: invalid JSON", "err", err)
-		httpserver.WriteError(w, http.StatusBadRequest, "bad_request", "invalid JSON", nil)
+		httpserver.WriteError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid JSON", nil)
 		return
 	}
 
-	pr, err := h.service.ReassignReviewer(r.Context(), id, req.OldReviewerID)
+	pr, newReviewerID, err := h.service.ReassignReviewerByID(r.Context(), req.PullRequestID, req.OldUserID)
 	if err != nil {
 		status, code := httpserver.MapError(err)
 		h.log.Error("reassign reviewer failed", "err", err, "code", code)
@@ -145,7 +132,10 @@ func (h *Handler) ReassignReviewer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpserver.WriteJSON(w, http.StatusOK, toResponse(*pr))
+	httpserver.WriteJSON(w, http.StatusOK, ReassignReviewerResponse{
+		PR:         toResponse(*pr),
+		ReplacedBy: newReviewerID,
+	})
 }
 
 
@@ -158,14 +148,14 @@ func (h *Handler) ReassignReviewer(w http.ResponseWriter, r *http.Request) {
 // @Failure     404   {object}  httpserver.ErrorResponse
 // @Router      /prs/{prId}/merge [post]
 func (h *Handler) MergePR(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "prId")
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		httpserver.WriteError(w, http.StatusBadRequest, "bad_request", "invalid pr id", nil)
+	var req MergePRRequest
+	if err := httpserver.DecodeJSON(r, &req); err != nil {
+		h.log.Error("merge pr: invalid JSON", "err", err)
+		httpserver.WriteError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid JSON", nil)
 		return
 	}
 
-	pr, err := h.service.MergePR(r.Context(), id)
+	pr, err := h.service.MergePRByID(r.Context(), req.PullRequestID)
 	if err != nil {
 		status, code := httpserver.MapError(err)
 		h.log.Error("merge pr failed", "err", err, "code", code)
@@ -173,7 +163,7 @@ func (h *Handler) MergePR(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpserver.WriteJSON(w, http.StatusOK, toResponse(*pr))
+	httpserver.WriteJSON(w, http.StatusOK, MergePRResponse{PR: toResponse(*pr)})
 }
 
 
@@ -187,21 +177,13 @@ func (h *Handler) MergePR(w http.ResponseWriter, r *http.Request) {
 // @Failure     404     {object}  httpserver.ErrorResponse
 // @Router      /users/{userId}/assigned-prs [get]
 func (h *Handler) ListAssignedPRs(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "userId")
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		httpserver.WriteError(w, http.StatusBadRequest, "bad_request", "invalid user id", nil)
+	userIDStr := r.URL.Query().Get("user_id")
+	if userIDStr == "" {
+		httpserver.WriteError(w, http.StatusBadRequest, "BAD_REQUEST", "user_id is required", nil)
 		return
 	}
 
-	q := r.URL.Query()
-	var status *pr.PRStatus
-	if v := q.Get("status"); v != "" {
-		st := pr.PRStatus(v)
-		status = &st
-	}
-
-	prs, err := h.service.ListAssignedPRs(r.Context(), id, status)
+	prs, err := h.service.ListAssignedPRsByID(r.Context(), userIDStr, nil)
 	if err != nil {
 		statusCode, code := httpserver.MapError(err)
 		h.log.Error("list assigned prs failed", "err", err, "code", code)
@@ -209,9 +191,13 @@ func (h *Handler) ListAssignedPRs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res := make([]PullRequest, 0, len(prs))
+	prList := make([]PullRequestShort, 0, len(prs))
 	for _, p := range prs {
-		res = append(res, toResponse(p))
+		prList = append(prList, toShortResponse(p))
 	}
-	httpserver.WriteJSON(w, http.StatusOK, res)
+	
+	httpserver.WriteJSON(w, http.StatusOK, GetReviewResponse{
+		UserID:       userIDStr,
+		PullRequests: prList,
+	})
 }

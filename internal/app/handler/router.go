@@ -31,35 +31,28 @@ type Deps struct {
 
 func NewRouter(r chi.Router, d Deps) http.Handler {
 	healthHandler := health.NewHandler(d.Log, d.DB)
-	teamHandler := teams.NewHandler(d.Teams, d.Log)
-	userHandler := users.NewHandler(d.Users, d.UserBulk, d.Log)
+	teamHandler := teams.NewHandler(d.Teams, d.Users, d.Log)
+	userHandler := users.NewHandler(d.Users, d.UserBulk, d.Teams, d.Log)
 	prHandler := prs.NewHandler(d.PRs, d.Log)
 	statsHandler := stats.NewHandler(d.Stats, d.Log)
 
 	r.Get("/healthz", healthHandler.Healthz)
 	r.Get("/readyz", healthHandler.Readyz)
 
-	r.Route("/teams", func(r chi.Router) {
-		r.Post("/", teamHandler.CreateTeam)
-		r.Get("/", teamHandler.ListTeams)
-		r.Get("/{teamId}", teamHandler.GetTeam)
-		r.Post("/{teamId}/users", userHandler.CreateUser)
-		r.Post("/{teamId}/deactivate-users", userHandler.BulkDeactivateUsers)
+	r.Route("/team", func(r chi.Router) {
+		r.Post("/add", teamHandler.CreateTeam)
+		r.Get("/get", teamHandler.GetTeam)
 	})
 
 	r.Route("/users", func(r chi.Router) {
-		r.Get("/", userHandler.ListUsers)
-		r.Get("/{userId}", userHandler.GetUser)
-		r.Patch("/{userId}", userHandler.UpdateUser)
-		r.Get("/{userId}/assigned-prs", prHandler.ListAssignedPRs)
+		r.Post("/setIsActive", userHandler.SetIsActive)
+		r.Get("/getReview", prHandler.ListAssignedPRs)
 	})
 
-	r.Route("/prs", func(r chi.Router) {
-		r.Post("/", prHandler.CreatePR)
-		r.Get("/", prHandler.ListPRs)
-		r.Get("/{prId}", prHandler.GetPR)
-		r.Post("/{prId}/merge", prHandler.MergePR)
-		r.Post("/{prId}/reassign", prHandler.ReassignReviewer)
+	r.Route("/pullRequest", func(r chi.Router) {
+		r.Post("/create", prHandler.CreatePR)
+		r.Post("/merge", prHandler.MergePR)
+		r.Post("/reassign", prHandler.ReassignReviewer)
 	})
 
 	r.Route("/stats", func(r chi.Router) {

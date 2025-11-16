@@ -11,6 +11,7 @@ var (
 
 	ErrInvalidRequest = errors.New("invalid request")
 
+	ErrInvalidInput	     = errors.New("invalid input")
 	ErrInvalidTeamName   = errors.New("invalid team name")
 	ErrInvalidUserName   = errors.New("invalid user name")
 	ErrInvalidPRTitle    = errors.New("invalid PR title")

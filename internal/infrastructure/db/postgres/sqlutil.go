@@ -3,12 +3,9 @@ package postgres
 import (
 	"strconv"
 	"strings"
-
-	"github.com/google/uuid"
 )
 
-
-func buildUUIDInQuery(prefix, suffix string, ids []uuid.UUID) (string, []any) {
+func buildStringInQuery(prefix, suffix string, ids []string) (string, []any) {
 	args := make([]any, 0, len(ids))
 	placeholders := make([]string, 0, len(ids))
 	for i, id := range ids {

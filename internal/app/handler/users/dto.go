@@ -1,17 +1,19 @@
 package users
 
-import (
-	"time"
-
-	"github.com/google/uuid"
-)
-
 type User struct {
-	ID        uuid.UUID `json:"id"`
-	Name      string    `json:"name"`
-	TeamID    uuid.UUID `json:"teamId"`
-	IsActive  bool      `json:"isActive"`
-	CreatedAt time.Time `json:"createdAt"`
+	UserID   string `json:"user_id"`
+	Username string `json:"username"`
+	TeamName string `json:"team_name"`
+	IsActive bool   `json:"is_active"`
+}
+
+type SetIsActiveRequest struct {
+	UserID   string `json:"user_id"`
+	IsActive bool   `json:"is_active"`
+}
+
+type SetIsActiveResponse struct {
+	User User `json:"user"`
 }
 
 type CreateUserRequest struct {
@@ -25,7 +27,7 @@ type UpdateUserRequest struct {
 }
 
 type BulkDeactivateUsersRequest struct {
-	UserIDs []uuid.UUID `json:"userIds"`
+	UserIDs []string `json:"userIds"`
 }
 
 type BulkDeactivateUsersResponse struct {

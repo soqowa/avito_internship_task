@@ -2,14 +2,12 @@ package user
 
 import (
 	"time"
-
-	"github.com/google/uuid"
 )
 
 type User struct {
-	ID        uuid.UUID
+	ID        string
 	Name      string
-	TeamID    uuid.UUID
+	TeamID    string
 	IsActive  bool
 	CreatedAt time.Time
 }

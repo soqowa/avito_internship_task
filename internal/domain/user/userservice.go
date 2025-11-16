@@ -3,21 +3,20 @@ package user
 import (
 	"context"
 
-	"github.com/google/uuid"
-
 	"github.com/user/reviewer-svc/internal/domain"
 	"github.com/user/reviewer-svc/internal/domain/team"
 )
 
 type UserRepository interface {
 	Create(ctx context.Context, tx domain.Tx, u *User) error
-	GetByID(ctx context.Context, tx domain.Tx, id uuid.UUID) (*User, error)
+	Upsert(ctx context.Context, tx domain.Tx, u *User) error
+	GetByID(ctx context.Context, tx domain.Tx, id string) (*User, error)
 	Update(ctx context.Context, tx domain.Tx, u *User) error
-	List(ctx context.Context, tx domain.Tx, teamID *uuid.UUID, isActive *bool) ([]User, error)
+	List(ctx context.Context, tx domain.Tx, teamID *string, isActive *bool) ([]User, error)
 }
 
 type TeamRepository interface {
-	GetByID(ctx context.Context, tx domain.Tx, id uuid.UUID) (*team.Team, error)
+	GetByID(ctx context.Context, tx domain.Tx, id string) (*team.Team, error)
 }
 
 type UserService struct {
@@ -25,26 +24,28 @@ type UserService struct {
 	teams        TeamRepository
 	tx           domain.TxManager
 	clk          domain.Clock
+	idGen        domain.IDGenerator
 	reassignment UserReassignmentService
 }
 
-func NewUserService(users UserRepository, teams TeamRepository, tx domain.TxManager, clk domain.Clock, reassignment UserReassignmentService) *UserService {
+func NewUserService(users UserRepository, teams TeamRepository, tx domain.TxManager, clk domain.Clock, idGen domain.IDGenerator, reassignment UserReassignmentService) *UserService {
 	return &UserService{
 		users:        users,
 		teams:        teams,
 		tx:           tx,
 		clk:          clk,
+		idGen:        idGen,
 		reassignment: reassignment,
 	}
 }
 
-func (s UserService) CreateUser(ctx context.Context, teamID uuid.UUID, name string, isActive bool) (*User, error) {
+func (s UserService) CreateUser(ctx context.Context, teamID string, name string, isActive bool) (*User, error) {
 	if name == "" {
 		return nil, domain.ErrInvalidUserName
 	}
 
 	user := &User{
-		ID:        uuid.New(),
+		ID:        s.idGen.Generate(),
 		Name:      name,
 		TeamID:    teamID,
 		IsActive:  isActive,
@@ -68,7 +69,7 @@ func (s UserService) CreateUser(ctx context.Context, teamID uuid.UUID, name stri
 	return res, nil
 }
 
-func (s UserService) ListUsers(ctx context.Context, teamID *uuid.UUID, isActive *bool) ([]User, error) {
+func (s UserService) ListUsers(ctx context.Context, teamID *string, isActive *bool) ([]User, error) {
 	var res []User
 	err := s.tx.WithTx(ctx, func(ctx context.Context, ttx domain.Tx) error {
 		list, err := s.users.List(ctx, ttx, teamID, isActive)
@@ -81,7 +82,7 @@ func (s UserService) ListUsers(ctx context.Context, teamID *uuid.UUID, isActive 
 	return res, err
 }
 
-func (s UserService) GetUser(ctx context.Context, id uuid.UUID) (*User, error) {
+func (s UserService) GetUser(ctx context.Context, id string) (*User, error) {
 	var res *User
 	err := s.tx.WithTx(ctx, func(ctx context.Context, ttx domain.Tx) error {
 		u, err := s.users.GetByID(ctx, ttx, id)
@@ -94,7 +95,7 @@ func (s UserService) GetUser(ctx context.Context, id uuid.UUID) (*User, error) {
 	return res, err
 }
 
-func (s UserService) UpdateUser(ctx context.Context, id uuid.UUID, name *string, isActive *bool) (*User, error) {
+func (s UserService) UpdateUser(ctx context.Context, id string, name *string, isActive *bool) (*User, error) {
 	if name == nil && isActive == nil {
 		return nil, domain.ErrEmptyUpdate
 	}
@@ -137,4 +138,34 @@ func (s UserService) UpdateUser(ctx context.Context, id uuid.UUID, name *string,
 		return nil
 	})
 	return res, err
+}
+
+func (s UserService) UpsertUserByID(ctx context.Context, userID string, teamID string, name string, isActive bool) (*User, error) {
+	if name == "" {
+		return nil, domain.ErrInvalidUserName
+	}
+
+	user := &User{
+		ID:        userID,
+		Name:      name,
+		TeamID:    teamID,
+		IsActive:  isActive,
+		CreatedAt: s.clk.Now(),
+	}
+
+	var res *User
+	err := s.tx.WithTx(ctx, func(ctx context.Context, ttx domain.Tx) error {
+		if _, err := s.teams.GetByID(ctx, ttx, teamID); err != nil {
+			return err
+		}
+		if err := s.users.Upsert(ctx, ttx, user); err != nil {
+			return err
+		}
+		res = user
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
 }

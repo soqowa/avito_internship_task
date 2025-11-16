@@ -3,21 +3,39 @@ package prs
 import domainpr "github.com/user/reviewer-svc/internal/domain/pr"
 
 func toResponse(pr domainpr.PullRequest) PullRequest {
-	res := PullRequest{
-		ID:        pr.ID,
-		Title:     pr.Title,
-		AuthorID:  pr.AuthorID,
-		Status:    PRStatus(pr.Status),
-		CreatedAt: pr.CreatedAt,
-		MergedAt:  pr.MergedAt,
-		Reviewers: make([]PRReviewer, 0, len(pr.Reviewers)),
-	}
+	assignedReviewers := make([]string, 0, len(pr.Reviewers))
 	for _, rv := range pr.Reviewers {
-		res.Reviewers = append(res.Reviewers, PRReviewer{
-			UserID:     rv.UserID,
-			Slot:       rv.Slot,
-			AssignedAt: rv.AssignedAt,
-		})
+		assignedReviewers = append(assignedReviewers, rv.UserID)
 	}
-	return res
+
+	var createdAt *string
+	if !pr.CreatedAt.IsZero() {
+		s := pr.CreatedAt.Format("2006-01-02T15:04:05Z07:00")
+		createdAt = &s
+	}
+
+	var mergedAt *string
+	if pr.MergedAt != nil && !pr.MergedAt.IsZero() {
+		s := pr.MergedAt.Format("2006-01-02T15:04:05Z07:00")
+		mergedAt = &s
+	}
+
+	return PullRequest{
+		PullRequestID:     pr.ID,
+		PullRequestName:   pr.Title,
+		AuthorID:          pr.AuthorID,
+		Status:            PRStatus(pr.Status),
+		AssignedReviewers: assignedReviewers,
+		CreatedAt:         createdAt,
+		MergedAt:          mergedAt,
+	}
+}
+
+func toShortResponse(pr domainpr.PullRequest) PullRequestShort {
+	return PullRequestShort{
+		PullRequestID:   pr.ID,
+		PullRequestName: pr.Title,
+		AuthorID:        pr.AuthorID,
+		Status:          PRStatus(pr.Status),
+	}
 }

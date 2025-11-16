@@ -1,12 +1,10 @@
 package stats
 
-import "github.com/google/uuid"
-
 type UserAssignmentsStatsItem struct {
-	UserID         uuid.UUID `json:"userId"`
-	TotalAssigned  int       `json:"totalAssigned"`
-	OpenAssigned   int       `json:"openAssigned"`
-	MergedAssigned int       `json:"mergedAssigned"`
+	UserID         string `json:"userId"`
+	TotalAssigned  int    `json:"totalAssigned"`
+	OpenAssigned   int    `json:"openAssigned"`
+	MergedAssigned int    `json:"mergedAssigned"`
 }
 
 type UserAssignmentsStatsResponse struct {
@@ -14,8 +12,8 @@ type UserAssignmentsStatsResponse struct {
 }
 
 type PRAssignmentsStatsItem struct {
-	PRID           uuid.UUID `json:"prId"`
-	ReviewersCount int       `json:"reviewersCount"`
+	PRID           string `json:"prId"`
+	ReviewersCount int    `json:"reviewersCount"`
 }
 
 type PRAssignmentsStatsResponse struct {

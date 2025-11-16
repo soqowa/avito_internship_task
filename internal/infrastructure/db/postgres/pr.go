@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
-
 	domain "github.com/user/reviewer-svc/internal/domain"
 	domainpr "github.com/user/reviewer-svc/internal/domain/pr"
 	stats "github.com/user/reviewer-svc/internal/domain/stats"
@@ -17,7 +15,6 @@ const (
 	statusOpenSmallint   int16 = 1
 	statusMergedSmallint int16 = 2
 )
-
 
 type PRRepo struct{}
 
@@ -51,7 +48,7 @@ func (r *PRRepo) Create(ctx context.Context, ttx domain.Tx, pr *domainpr.PullReq
 	return nil
 }
 
-func (r *PRRepo) GetByID(ctx context.Context, ttx domain.Tx, id uuid.UUID, forUpdate bool) (*domainpr.PullRequest, error) {
+func (r *PRRepo) GetByID(ctx context.Context, ttx domain.Tx, id string, forUpdate bool) (*domainpr.PullRequest, error) {
 	query := "SELECT id, title, author_id, status, created_at, merged_at FROM pull_requests WHERE id = $1"
 	if forUpdate {
 		query += " FOR UPDATE"
@@ -72,7 +69,7 @@ func (r *PRRepo) GetByID(ctx context.Context, ttx domain.Tx, id uuid.UUID, forUp
 	return &pr, nil
 }
 
-func (r *PRRepo) UpdateStatus(ctx context.Context, ttx domain.Tx, id uuid.UUID, status domainpr.PRStatus, mergedAt *time.Time) error {
+func (r *PRRepo) UpdateStatus(ctx context.Context, ttx domain.Tx, id string, status domainpr.PRStatus, mergedAt *time.Time) error {
 	_, err := ttx.Exec(ctx,
 		"UPDATE pull_requests SET status = $1, merged_at = $2 WHERE id = $3",
 		statusToSmallint(status), mergedAt, id,
@@ -80,7 +77,7 @@ func (r *PRRepo) UpdateStatus(ctx context.Context, ttx domain.Tx, id uuid.UUID, 
 	return translateError(err)
 }
 
-func (r *PRRepo) ReplaceReviewers(ctx context.Context, ttx domain.Tx, prID uuid.UUID, reviewers []domainpr.PRReviewer) error {
+func (r *PRRepo) ReplaceReviewers(ctx context.Context, ttx domain.Tx, prID string, reviewers []domainpr.PRReviewer) error {
 	if _, err := ttx.Exec(ctx, "DELETE FROM pr_reviewers WHERE pr_id = $1", prID); err != nil {
 		return translateError(err)
 	}
@@ -112,7 +109,7 @@ func (r *PRRepo) List(ctx context.Context, ttx domain.Tx, status *domainpr.PRSta
 	defer rows.Close()
 
 	var res []domainpr.PullRequest
-	var ids []uuid.UUID
+	var ids []string
 	for rows.Next() {
 		var pr domainpr.PullRequest
 		var statusSmall int16
@@ -139,7 +136,7 @@ func (r *PRRepo) List(ctx context.Context, ttx domain.Tx, status *domainpr.PRSta
 	return res, nil
 }
 
-func (r *PRRepo) ListAssignedTo(ctx context.Context, ttx domain.Tx, userID uuid.UUID, status *domainpr.PRStatus) ([]domainpr.PullRequest, error) {
+func (r *PRRepo) ListAssignedTo(ctx context.Context, ttx domain.Tx, userID string, status *domainpr.PRStatus) ([]domainpr.PullRequest, error) {
 	query := "SELECT DISTINCT p.id, p.title, p.author_id, p.status, p.created_at, p.merged_at FROM pull_requests p JOIN pr_reviewers r ON r.pr_id = p.id WHERE r.user_id = $1"
 	args := []any{userID}
 	if status != nil {
@@ -155,7 +152,7 @@ func (r *PRRepo) ListAssignedTo(ctx context.Context, ttx domain.Tx, userID uuid.
 	defer rows.Close()
 
 	var res []domainpr.PullRequest
-	var ids []uuid.UUID
+	var ids []string
 	for rows.Next() {
 		var pr domainpr.PullRequest
 		var statusSmall int16
@@ -182,7 +179,7 @@ func (r *PRRepo) ListAssignedTo(ctx context.Context, ttx domain.Tx, userID uuid.
 	return res, nil
 }
 
-func (r *PRRepo) StatsByUser(ctx context.Context, ttx domain.Tx, teamID *uuid.UUID) ([]stats.UserAssignmentsStats, error) {
+func (r *PRRepo) StatsByUser(ctx context.Context, ttx domain.Tx, teamID *string) ([]stats.UserAssignmentsStats, error) {
 	query := "SELECT u.id, COUNT(prr.pr_id) AS total," +
 		" COUNT(CASE WHEN p.status = $1 THEN 1 END) AS open_cnt," +
 		" COUNT(CASE WHEN p.status = $2 THEN 1 END) AS merged_cnt" +
@@ -216,7 +213,7 @@ func (r *PRRepo) StatsByUser(ctx context.Context, ttx domain.Tx, teamID *uuid.UU
 	return res, nil
 }
 
-func (r *PRRepo) StatsByPR(ctx context.Context, ttx domain.Tx, teamID *uuid.UUID) ([]stats.PRAssignmentsStats, error) {
+func (r *PRRepo) StatsByPR(ctx context.Context, ttx domain.Tx, teamID *string) ([]stats.PRAssignmentsStats, error) {
 	query := "SELECT p.id, COUNT(prr.user_id) AS reviewers_cnt FROM pull_requests p"
 	var args []any
 	if teamID != nil {
@@ -246,7 +243,7 @@ func (r *PRRepo) StatsByPR(ctx context.Context, ttx domain.Tx, teamID *uuid.UUID
 	return res, nil
 }
 
-func (r *PRRepo) loadReviewers(ctx context.Context, ttx domain.Tx, prID uuid.UUID) ([]domainpr.PRReviewer, error) {
+func (r *PRRepo) loadReviewers(ctx context.Context, ttx domain.Tx, prID string) ([]domainpr.PRReviewer, error) {
 	rows, err := ttx.Query(ctx,
 		"SELECT pr_id, slot, user_id, created_at FROM pr_reviewers WHERE pr_id = $1 ORDER BY slot",
 		prID,
@@ -270,12 +267,12 @@ func (r *PRRepo) loadReviewers(ctx context.Context, ttx domain.Tx, prID uuid.UUI
 	return res, nil
 }
 
-func (r *PRRepo) loadReviewersBulk(ctx context.Context, ttx domain.Tx, prIDs []uuid.UUID) (map[uuid.UUID][]domainpr.PRReviewer, error) {
+func (r *PRRepo) loadReviewersBulk(ctx context.Context, ttx domain.Tx, prIDs []string) (map[string][]domainpr.PRReviewer, error) {
 	if len(prIDs) == 0 {
-		return map[uuid.UUID][]domainpr.PRReviewer{}, nil
+		return map[string][]domainpr.PRReviewer{}, nil
 	}
 
-	query, args := buildUUIDInQuery(
+	query, args := buildStringInQuery(
 		"SELECT pr_id, slot, user_id, created_at FROM pr_reviewers WHERE pr_id IN (",
 		") ORDER BY pr_id, slot",
 		prIDs,
@@ -290,7 +287,7 @@ func (r *PRRepo) loadReviewersBulk(ctx context.Context, ttx domain.Tx, prIDs []u
 	}
 	defer rows.Close()
 
-	res := make(map[uuid.UUID][]domainpr.PRReviewer)
+	res := make(map[string][]domainpr.PRReviewer)
 	for rows.Next() {
 		var rv domainpr.PRReviewer
 		if err := rows.Scan(&rv.PRID, &rv.Slot, &rv.UserID, &rv.AssignedAt); err != nil {

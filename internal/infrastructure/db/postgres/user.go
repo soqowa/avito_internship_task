@@ -5,13 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/google/uuid"
-
 	domain "github.com/user/reviewer-svc/internal/domain"
 	domainuser "github.com/user/reviewer-svc/internal/domain/user"
 	userreassign "github.com/user/reviewer-svc/internal/domain/userreassign"
 )
-
 
 type UserRepo struct{}
 
@@ -27,7 +24,20 @@ func (r *UserRepo) Create(ctx context.Context, ttx domain.Tx, u *domainuser.User
 	return translateError(err)
 }
 
-func (r *UserRepo) GetByID(ctx context.Context, ttx domain.Tx, id uuid.UUID) (*domainuser.User, error) {
+func (r *UserRepo) Upsert(ctx context.Context, ttx domain.Tx, u *domainuser.User) error {
+	_, err := ttx.Exec(ctx,
+		`INSERT INTO users (id, name, team_id, is_active, created_at) 
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT (id) DO UPDATE SET 
+			name = EXCLUDED.name, 
+			team_id = EXCLUDED.team_id, 
+			is_active = EXCLUDED.is_active`,
+		u.ID, u.Name, u.TeamID, u.IsActive, u.CreatedAt,
+	)
+	return translateError(err)
+}
+
+func (r *UserRepo) GetByID(ctx context.Context, ttx domain.Tx, id string) (*domainuser.User, error) {
 	row := ttx.QueryRow(ctx,
 		"SELECT id, name, team_id, is_active, created_at FROM users WHERE id = $1",
 		id,
@@ -47,7 +57,7 @@ func (r *UserRepo) Update(ctx context.Context, ttx domain.Tx, u *domainuser.User
 	return translateError(err)
 }
 
-func (r *UserRepo) List(ctx context.Context, ttx domain.Tx, teamID *uuid.UUID, isActive *bool) ([]domainuser.User, error) {
+func (r *UserRepo) List(ctx context.Context, ttx domain.Tx, teamID *string, isActive *bool) ([]domainuser.User, error) {
 	query := "SELECT id, name, team_id, is_active, created_at FROM users"
 	var args []any
 	var conds []string
@@ -85,12 +95,12 @@ func (r *UserRepo) List(ctx context.Context, ttx domain.Tx, teamID *uuid.UUID, i
 	return res, nil
 }
 
-func (r *UserRepo) ListByIDs(ctx context.Context, ttx domain.Tx, ids []uuid.UUID) ([]domainuser.User, error) {
+func (r *UserRepo) ListByIDs(ctx context.Context, ttx domain.Tx, ids []string) ([]domainuser.User, error) {
 	if len(ids) == 0 {
 		return nil, nil
 	}
 
-	query, args := buildUUIDInQuery("SELECT id, name, team_id, is_active, created_at FROM users WHERE id IN (", ")", ids)
+	query, args := buildStringInQuery("SELECT id, name, team_id, is_active, created_at FROM users WHERE id IN (", ")", ids)
 
 	rows, err := ttx.Query(ctx, query, args...)
 	if err != nil {
@@ -112,7 +122,7 @@ func (r *UserRepo) ListByIDs(ctx context.Context, ttx domain.Tx, ids []uuid.UUID
 	return res, nil
 }
 
-func (r *UserRepo) ListActiveByTeamExcept(ctx context.Context, ttx domain.Tx, teamID uuid.UUID, exclude []uuid.UUID) ([]domainuser.User, error) {
+func (r *UserRepo) ListActiveByTeamExcept(ctx context.Context, ttx domain.Tx, teamID string, exclude []string) ([]domainuser.User, error) {
 	query := "SELECT id, name, team_id, is_active, created_at FROM users WHERE team_id = $1 AND is_active = TRUE"
 	args := []any{teamID}
 

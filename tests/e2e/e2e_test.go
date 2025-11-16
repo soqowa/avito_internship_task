@@ -3,7 +3,6 @@ package e2e
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -12,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	chi "github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -23,18 +21,32 @@ import (
 )
 
 type e2eTeam struct {
-	Id   uuid.UUID `json:"id"`
-	Name string    `json:"name"`
+	TeamName string        `json:"team_name"`
+	Members  []e2eMember   `json:"members"`
 }
 
-type e2eUser struct {
-	Id uuid.UUID `json:"id"`
+type e2eMember struct {
+	UserID   string `json:"user_id"`
+	Username string `json:"username"`
+	IsActive bool   `json:"is_active"`
+}
+
+type e2eTeamResponse struct {
+	Team e2eTeam `json:"team"`
 }
 
 type e2ePullRequest struct {
-	Id       uuid.UUID  `json:"id"`
-	Status   string     `json:"status"`
-	MergedAt *time.Time `json:"mergedAt"`
+	PullRequestID     string   `json:"pull_request_id"`
+	PullRequestName   string   `json:"pull_request_name"`
+	AuthorID          string   `json:"author_id"`
+	Status            string   `json:"status"`
+	AssignedReviewers []string `json:"assigned_reviewers"`
+	CreatedAt         *string  `json:"createdAt,omitempty"`
+	MergedAt          *string  `json:"mergedAt,omitempty"`
+}
+
+type e2ePRResponse struct {
+	PR e2ePullRequest `json:"pr"`
 }
 
 func setupApp(t *testing.T) (*httptest.Server, func()) {
@@ -104,7 +116,16 @@ func TestPRCreateAndMergeIdempotent(t *testing.T) {
 
 	client := &http.Client{Timeout: 5 * time.Second}
 
-	teamRes, err := client.Post(ts.URL+"/teams", "application/json", strings.NewReader(`{"name":"team-e2e"}`))
+	teamPayload := `{
+		"team_name": "team-e2e",
+		"members": [
+			{"user_id": "u1", "username": "author", "is_active": true},
+			{"user_id": "u2", "username": "reviewer1", "is_active": true},
+			{"user_id": "u3", "username": "reviewer2", "is_active": true}
+		]
+	}`
+
+	teamRes, err := client.Post(ts.URL+"/team/add", "application/json", strings.NewReader(teamPayload))
 	if err != nil {
 		t.Fatalf("create team: %v", err)
 	}
@@ -112,26 +133,13 @@ func TestPRCreateAndMergeIdempotent(t *testing.T) {
 	if teamRes.StatusCode != http.StatusCreated {
 		t.Fatalf("expected 201, got %d", teamRes.StatusCode)
 	}
-	var team e2eTeam
-	if err := json.NewDecoder(teamRes.Body).Decode(&team); err != nil {
+	var teamResp e2eTeamResponse
+	if err := json.NewDecoder(teamRes.Body).Decode(&teamResp); err != nil {
 		t.Fatalf("decode team: %v", err)
 	}
 
-	userRes, err := client.Post(ts.URL+"/teams/"+team.Id.String()+"/users", "application/json", strings.NewReader(`{"name":"author"}`))
-	if err != nil {
-		t.Fatalf("create user: %v", err)
-	}
-	defer userRes.Body.Close()
-	if userRes.StatusCode != http.StatusCreated {
-		t.Fatalf("expected 201, got %d", userRes.StatusCode)
-	}
-	var user e2eUser
-	if err := json.NewDecoder(userRes.Body).Decode(&user); err != nil {
-		t.Fatalf("decode user: %v", err)
-	}
-
-	prBody := fmt.Sprintf(`{"title":"pr1","authorId":"%s"}`, user.Id.String())
-	prRes, err := client.Post(ts.URL+"/prs", "application/json", strings.NewReader(prBody))
+	prBody := `{"pull_request_id": "pr-1001", "pull_request_name": "pr1", "author_id": "u1"}`
+	prRes, err := client.Post(ts.URL+"/pullRequest/create", "application/json", strings.NewReader(prBody))
 	if err != nil {
 		t.Fatalf("create pr: %v", err)
 	}
@@ -139,17 +147,17 @@ func TestPRCreateAndMergeIdempotent(t *testing.T) {
 	if prRes.StatusCode != http.StatusCreated {
 		t.Fatalf("expected 201, got %d", prRes.StatusCode)
 	}
-	var pr e2ePullRequest
-	if err := json.NewDecoder(prRes.Body).Decode(&pr); err != nil {
+	var prResp e2ePRResponse
+	if err := json.NewDecoder(prRes.Body).Decode(&prResp); err != nil {
 		t.Fatalf("decode pr: %v", err)
 	}
-	if pr.Status != "OPEN" {
-		t.Fatalf("expected status OPEN, got %s", pr.Status)
+	if prResp.PR.Status != "OPEN" {
+		t.Fatalf("expected status OPEN, got %s", prResp.PR.Status)
 	}
 
-	mergeURL := ts.URL + "/prs/" + pr.Id.String() + "/merge"
+	mergeBody := `{"pull_request_id": "pr-1001"}`
 	for i := 0; i < 2; i++ {
-		mergeRes, err := client.Post(mergeURL, "application/json", nil)
+		mergeRes, err := client.Post(ts.URL+"/pullRequest/merge", "application/json", strings.NewReader(mergeBody))
 		if err != nil {
 			t.Fatalf("merge pr: %v", err)
 		}
@@ -157,16 +165,16 @@ func TestPRCreateAndMergeIdempotent(t *testing.T) {
 			mergeRes.Body.Close()
 			t.Fatalf("expected 200, got %d", mergeRes.StatusCode)
 		}
-		var merged e2ePullRequest
-		if err := json.NewDecoder(mergeRes.Body).Decode(&merged); err != nil {
+		var mergedResp e2ePRResponse
+		if err := json.NewDecoder(mergeRes.Body).Decode(&mergedResp); err != nil {
 			mergeRes.Body.Close()
 			t.Fatalf("decode merged pr: %v", err)
 		}
 		mergeRes.Body.Close()
-		if merged.Status != "MERGED" {
-			t.Fatalf("expected MERGED, got %s", merged.Status)
+		if mergedResp.PR.Status != "MERGED" {
+			t.Fatalf("expected MERGED, got %s", mergedResp.PR.Status)
 		}
-		if merged.MergedAt == nil {
+		if mergedResp.PR.MergedAt == nil {
 			t.Fatalf("expected mergedAt to be set")
 		}
 	}

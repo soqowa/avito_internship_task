@@ -3,16 +3,13 @@ package stats
 import (
 	"context"
 
-	"github.com/google/uuid"
-
 	"github.com/user/reviewer-svc/internal/domain"
 )
 
 type PullRequestStatsRepository interface {
-	StatsByUser(ctx context.Context, tx domain.Tx, teamID *uuid.UUID) ([]UserAssignmentsStats, error)
-	StatsByPR(ctx context.Context, tx domain.Tx, teamID *uuid.UUID) ([]PRAssignmentsStats, error)
+	StatsByUser(ctx context.Context, tx domain.Tx, teamID *string) ([]UserAssignmentsStats, error)
+	StatsByPR(ctx context.Context, tx domain.Tx, teamID *string) ([]PRAssignmentsStats, error)
 }
-
 
 type StatsService struct {
 	prs PullRequestStatsRepository
@@ -23,7 +20,7 @@ func NewStatsService(prs PullRequestStatsRepository, tx domain.TxManager) *Stats
 	return &StatsService{prs: prs, tx: tx}
 }
 
-func (s StatsService) StatsByUser(ctx context.Context, teamID *uuid.UUID) ([]UserAssignmentsStats, error) {
+func (s StatsService) StatsByUser(ctx context.Context, teamID *string) ([]UserAssignmentsStats, error) {
 	var res []UserAssignmentsStats
 	err := s.tx.WithTx(ctx, func(ctx context.Context, ttx domain.Tx) error {
 		stats, err := s.prs.StatsByUser(ctx, ttx, teamID)
@@ -36,7 +33,7 @@ func (s StatsService) StatsByUser(ctx context.Context, teamID *uuid.UUID) ([]Use
 	return res, err
 }
 
-func (s StatsService) StatsByPR(ctx context.Context, teamID *uuid.UUID) ([]PRAssignmentsStats, error) {
+func (s StatsService) StatsByPR(ctx context.Context, teamID *string) ([]PRAssignmentsStats, error) {
 	var res []PRAssignmentsStats
 	err := s.tx.WithTx(ctx, func(ctx context.Context, ttx domain.Tx) error {
 		stats, err := s.prs.StatsByPR(ctx, ttx, teamID)

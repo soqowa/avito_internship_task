@@ -2,8 +2,6 @@ package pr
 
 import (
 	"time"
-
-	"github.com/google/uuid"
 )
 
 type PRStatus string
@@ -14,16 +12,16 @@ const (
 )
 
 type PRReviewer struct {
-	PRID       uuid.UUID
+	PRID       string
 	Slot       int
-	UserID     uuid.UUID
+	UserID     string
 	AssignedAt time.Time
 }
 
 type PullRequest struct {
-	ID        uuid.UUID
+	ID        string
 	Title     string
-	AuthorID  uuid.UUID
+	AuthorID  string
 	Status    PRStatus
 	CreatedAt time.Time
 	MergedAt  *time.Time

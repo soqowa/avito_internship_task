@@ -3,23 +3,19 @@ package userreassign
 import (
 	"context"
 
-	"github.com/google/uuid"
-
 	"github.com/user/reviewer-svc/internal/domain"
 	prdomain "github.com/user/reviewer-svc/internal/domain/pr"
 	domainuser "github.com/user/reviewer-svc/internal/domain/user"
 )
 
 type ReassignmentPRRepository interface {
-	ListAssignedTo(ctx context.Context, tx domain.Tx, userID uuid.UUID, status *prdomain.PRStatus) ([]prdomain.PullRequest, error)
-	ReplaceReviewers(ctx context.Context, tx domain.Tx, prID uuid.UUID, reviewers []prdomain.PRReviewer) error
+	ListAssignedTo(ctx context.Context, tx domain.Tx, userID string, status *prdomain.PRStatus) ([]prdomain.PullRequest, error)
+	ReplaceReviewers(ctx context.Context, tx domain.Tx, prID string, reviewers []prdomain.PRReviewer) error
 }
 
 type ReassignmentUserRepository interface {
-	ListActiveByTeamExcept(ctx context.Context, tx domain.Tx, teamID uuid.UUID, exclude []uuid.UUID) ([]domainuser.User, error)
+	ListActiveByTeamExcept(ctx context.Context, tx domain.Tx, teamID string, exclude []string) ([]domainuser.User, error)
 }
-
-
 
 type userReassignmentService struct {
 	prs   ReassignmentPRRepository
@@ -37,8 +33,7 @@ func NewUserReassignmentService(prs ReassignmentPRRepository, users Reassignment
 	}
 }
 
-
-func (s *userReassignmentService) ReassignUserInOpenPRs(ctx context.Context, tx domain.Tx, teamID uuid.UUID, u *domainuser.User) (int, error) {
+func (s *userReassignmentService) ReassignUserInOpenPRs(ctx context.Context, tx domain.Tx, teamID string, u *domainuser.User) (int, error) {
 	open := prdomain.PRStatusOpen
 
 	prs, err := s.prs.ListAssignedTo(ctx, tx, u.ID, &open)
@@ -46,9 +41,7 @@ func (s *userReassignmentService) ReassignUserInOpenPRs(ctx context.Context, tx 
 		return 0, err
 	}
 
-
-
-	baseCandidates, err := s.users.ListActiveByTeamExcept(ctx, tx, teamID, []uuid.UUID{u.ID})
+	baseCandidates, err := s.users.ListActiveByTeamExcept(ctx, tx, teamID, []string{u.ID})
 	if err != nil {
 		return 0, err
 	}
@@ -57,7 +50,6 @@ func (s *userReassignmentService) ReassignUserInOpenPRs(ctx context.Context, tx 
 
 	for _, pr := range prs {
 		exclude := pr.BuildExcludeList(u.ID)
-
 
 		cands := make([]domainuser.User, 0, len(baseCandidates))
 		for _, cand := range baseCandidates {

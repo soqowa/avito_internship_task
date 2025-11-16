@@ -1,17 +1,21 @@
 package teams
 
-import (
-	"time"
-
-	"github.com/google/uuid"
-)
-
 type Team struct {
-	ID        uuid.UUID `json:"id"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"createdAt"`
+	TeamName string       `json:"team_name"`
+	Members  []TeamMember `json:"members"`
+}
+
+type TeamMember struct {
+	UserID   string `json:"user_id"`
+	Username string `json:"username"`
+	IsActive bool   `json:"is_active"`
 }
 
 type CreateTeamRequest struct {
-	Name string `json:"name"`
+	TeamName string       `json:"team_name"`
+	Members  []TeamMember `json:"members"`
+}
+
+type CreateTeamResponse struct {
+	Team Team `json:"team"`
 }

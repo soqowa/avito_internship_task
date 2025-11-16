@@ -7,7 +7,6 @@ import (
 	"log/slog"
 
 	chi "github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 
 	"github.com/user/reviewer-svc/internal/app/httpserver"
 )
@@ -15,11 +14,51 @@ import (
 type Handler struct {
 	users Service
 	bulk  BulkService
+	teams TeamService
 	log   *slog.Logger
 }
 
-func NewHandler(users Service, bulk BulkService, log *slog.Logger) *Handler {
-	return &Handler{users: users, bulk: bulk, log: log}
+func NewHandler(users Service, bulk BulkService, teams TeamService, log *slog.Logger) *Handler {
+	return &Handler{users: users, bulk: bulk, teams: teams, log: log}
+}
+
+// @Summary     Set user active status
+// @Tags        users
+// @Accept      json
+// @Produce     json
+// @Param       body    body      SetIsActiveRequest   true  "User active status"
+// @Success     200     {object}  SetIsActiveResponse
+// @Failure     400     {object}  httpserver.ErrorResponse
+// @Failure     404     {object}  httpserver.ErrorResponse
+// @Router      /users/setIsActive [post]
+func (h *Handler) SetIsActive(w http.ResponseWriter, r *http.Request) {
+	var req SetIsActiveRequest
+	if err := httpserver.DecodeJSON(r, &req); err != nil {
+		h.log.Error("set is_active: invalid JSON", "err", err)
+		httpserver.WriteError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid JSON", nil)
+		return
+	}
+
+	userID := req.UserID
+
+	isActive := req.IsActive
+	user, err := h.users.UpdateUser(r.Context(), userID, nil, &isActive)
+	if err != nil {
+		status, code := httpserver.MapError(err)
+		h.log.Error("set is_active failed", "err", err, "code", code)
+		httpserver.WriteError(w, status, code, err.Error(), nil)
+		return
+	}
+
+	team, err := h.teams.GetTeam(r.Context(), user.TeamID)
+	if err != nil {
+		status, code := httpserver.MapError(err)
+		h.log.Error("get team failed", "err", err, "code", code)
+		httpserver.WriteError(w, status, code, err.Error(), nil)
+		return
+	}
+
+	httpserver.WriteJSON(w, http.StatusOK, SetIsActiveResponse{User: toResponseWithTeam(*user, *team)})
 }
 
 
@@ -34,12 +73,7 @@ func NewHandler(users Service, bulk BulkService, log *slog.Logger) *Handler {
 // @Failure     404     {object}  httpserver.ErrorResponse
 // @Router      /teams/{teamId}/users [post]
 func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
-	teamIDStr := chi.URLParam(r, "teamId")
-	teamID, err := uuid.Parse(teamIDStr)
-	if err != nil {
-		httpserver.WriteError(w, http.StatusBadRequest, "bad_request", "invalid team id", nil)
-		return
-	}
+	teamID := chi.URLParam(r, "teamId")
 
 	var req CreateUserRequest
 	if err := httpserver.DecodeJSON(r, &req); err != nil {
@@ -61,7 +95,7 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpserver.WriteJSON(w, http.StatusCreated, toResponse(*user))
+	httpserver.WriteJSON(w, http.StatusCreated, toResponseSimple(*user))
 }
 
 
@@ -75,14 +109,9 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 
-	var teamID *uuid.UUID
+	var teamID *string
 	if v := q.Get("teamId"); v != "" {
-		id, err := uuid.Parse(v)
-		if err != nil {
-			httpserver.WriteError(w, http.StatusBadRequest, "bad_request", "invalid teamId", nil)
-			return
-		}
-		teamID = &id
+		teamID = &v
 	}
 
 	var isActive *bool
@@ -105,7 +134,7 @@ func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
 
 	res := make([]User, 0, len(users))
 	for _, u := range users {
-		res = append(res, toResponse(u))
+		res = append(res, toResponseSimple(u))
 	}
 	httpserver.WriteJSON(w, http.StatusOK, res)
 }
@@ -120,12 +149,7 @@ func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
 // @Failure     404     {object}  httpserver.ErrorResponse
 // @Router      /users/{userId} [get]
 func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "userId")
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		httpserver.WriteError(w, http.StatusBadRequest, "bad_request", "invalid user id", nil)
-		return
-	}
+	id := chi.URLParam(r, "userId")
 
 	user, err := h.users.GetUser(r.Context(), id)
 	if err != nil {
@@ -135,7 +159,7 @@ func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpserver.WriteJSON(w, http.StatusOK, toResponse(*user))
+	httpserver.WriteJSON(w, http.StatusOK, toResponseSimple(*user))
 }
 
 
@@ -151,12 +175,7 @@ func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 // @Failure     409     {object}  httpserver.ErrorResponse
 // @Router      /users/{userId} [patch]
 func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "userId")
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		httpserver.WriteError(w, http.StatusBadRequest, "bad_request", "invalid user id", nil)
-		return
-	}
+	id := chi.URLParam(r, "userId")
 
 	var req UpdateUserRequest
 	if err := httpserver.DecodeJSON(r, &req); err != nil {
@@ -173,7 +192,7 @@ func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpserver.WriteJSON(w, http.StatusOK, toResponse(*user))
+	httpserver.WriteJSON(w, http.StatusOK, toResponseSimple(*user))
 }
 
 
@@ -189,12 +208,7 @@ func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 // @Failure     409     {object}  httpserver.ErrorResponse
 // @Router      /teams/{teamId}/deactivate-users [post]
 func (h *Handler) BulkDeactivateUsers(w http.ResponseWriter, r *http.Request) {
-	teamIDStr := chi.URLParam(r, "teamId")
-	teamID, err := uuid.Parse(teamIDStr)
-	if err != nil {
-		httpserver.WriteError(w, http.StatusBadRequest, "bad_request", "invalid team id", nil)
-		return
-	}
+	teamID := chi.URLParam(r, "teamId")
 
 	var req BulkDeactivateUsersRequest
 	if err := httpserver.DecodeJSON(r, &req); err != nil {

@@ -3,8 +3,6 @@ package user
 import (
 	"context"
 
-	"github.com/google/uuid"
-
 	"github.com/user/reviewer-svc/internal/domain"
 	"github.com/user/reviewer-svc/internal/domain/team"
 )
@@ -18,12 +16,12 @@ type UserBulkService struct {
 }
 
 type BulkUserRepository interface {
-	ListByIDs(ctx context.Context, tx domain.Tx, ids []uuid.UUID) ([]User, error)
+	ListByIDs(ctx context.Context, tx domain.Tx, ids []string) ([]User, error)
 	Update(ctx context.Context, tx domain.Tx, u *User) error
 }
 
 type BulkTeamRepository interface {
-	GetByID(ctx context.Context, tx domain.Tx, id uuid.UUID) (*team.Team, error)
+	GetByID(ctx context.Context, tx domain.Tx, id string) (*team.Team, error)
 }
 
 func NewUserBulkService(users BulkUserRepository, teams BulkTeamRepository, tx domain.TxManager, reassignment UserReassignmentService) *UserBulkService {
@@ -36,15 +34,15 @@ func NewUserBulkService(users BulkUserRepository, teams BulkTeamRepository, tx d
 }
 
 
-func (s UserBulkService) BulkDeactivate(ctx context.Context, teamID uuid.UUID, userIDs []uuid.UUID) (int, int, error) {
+func (s UserBulkService) BulkDeactivate(ctx context.Context, teamID string, userIDs []string) (int, int, error) {
 	if len(userIDs) == 0 {
 		return 0, 0, domain.ErrEmptyBulkUserIDs
 	}
 
 
 
-	uniqueUserIDs := make([]uuid.UUID, 0, len(userIDs))
-	seen := make(map[uuid.UUID]struct{}, len(userIDs))
+	uniqueUserIDs := make([]string, 0, len(userIDs))
+	seen := make(map[string]struct{}, len(userIDs))
 	for _, id := range userIDs {
 		if _, ok := seen[id]; ok {
 			continue
@@ -68,7 +66,7 @@ func (s UserBulkService) BulkDeactivate(ctx context.Context, teamID uuid.UUID, u
 			return domain.ErrNotFound
 		}
 
-		usersMap := make(map[uuid.UUID]*User, len(users))
+		usersMap := make(map[string]*User, len(users))
 		for i := range users {
 			u := users[i]
 			if u.TeamID != teamID {

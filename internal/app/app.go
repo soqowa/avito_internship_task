@@ -16,6 +16,7 @@ import (
 	userreassign "github.com/user/reviewer-svc/internal/domain/userreassign"
 	"github.com/user/reviewer-svc/internal/infrastructure/clock"
 	postgres "github.com/user/reviewer-svc/internal/infrastructure/db/postgres"
+	"github.com/user/reviewer-svc/internal/infrastructure/idgen"
 	"github.com/user/reviewer-svc/internal/infrastructure/random"
 )
 
@@ -27,14 +28,15 @@ func NewHandler(r chi.Router, pool *pgxpool.Pool, log *slog.Logger) http.Handler
 
 	clk := clock.SystemClock{}
 	rnd := random.New()
+	idGen := idgen.NewUUIDGenerator()
 	strategy := usersvc.NewRandomAssignmentStrategy(rnd)
 
-	teamSvc := teamsvc.NewTeamService(teamRepo, txManager, clk)
+	teamSvc := teamsvc.NewTeamService(teamRepo, txManager, clk, idGen)
 
 	userReassignSvc := userreassign.NewUserReassignmentService(prRepo, userRepo, clk, strategy)
-	userSvc := usersvc.NewUserService(userRepo, teamRepo, txManager, clk, userReassignSvc)
+	userSvc := usersvc.NewUserService(userRepo, teamRepo, txManager, clk, idGen, userReassignSvc)
 	userBulkSvc := usersvc.NewUserBulkService(userRepo, teamRepo, txManager, userReassignSvc)
-	prSvc := prsvc.NewPRService(prRepo, userRepo, txManager, clk, strategy)
+	prSvc := prsvc.NewPRService(prRepo, userRepo, txManager, clk, idGen, strategy)
 	statsSvc := statssvc.NewStatsService(prRepo, txManager)
 
 	deps := handler.Deps{

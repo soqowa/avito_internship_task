@@ -1,11 +1,5 @@
 package prs
 
-import (
-	"time"
-
-	"github.com/google/uuid"
-)
-
 type PRStatus string
 
 const (
@@ -13,27 +7,52 @@ const (
 	StatusMerged PRStatus = "MERGED"
 )
 
-type PRReviewer struct {
-	UserID     uuid.UUID `json:"userId"`
-	Slot       int       `json:"slot"`
-	AssignedAt time.Time `json:"assignedAt"`
+type PullRequest struct {
+	PullRequestID    string    `json:"pull_request_id"`
+	PullRequestName  string    `json:"pull_request_name"`
+	AuthorID         string    `json:"author_id"`
+	Status           PRStatus  `json:"status"`
+	AssignedReviewers []string `json:"assigned_reviewers"`
+	CreatedAt        *string   `json:"createdAt,omitempty"`
+	MergedAt         *string   `json:"mergedAt,omitempty"`
 }
 
-type PullRequest struct {
-	ID        uuid.UUID    `json:"id"`
-	Title     string       `json:"title"`
-	AuthorID  uuid.UUID    `json:"authorId"`
-	Status    PRStatus     `json:"status"`
-	Reviewers []PRReviewer `json:"reviewers"`
-	CreatedAt time.Time    `json:"createdAt"`
-	MergedAt  *time.Time   `json:"mergedAt"`
+type PullRequestShort struct {
+	PullRequestID   string   `json:"pull_request_id"`
+	PullRequestName string   `json:"pull_request_name"`
+	AuthorID        string   `json:"author_id"`
+	Status          PRStatus `json:"status"`
 }
 
 type CreatePRRequest struct {
-	Title    string    `json:"title"`
-	AuthorID uuid.UUID `json:"authorId"`
+	PullRequestID   string `json:"pull_request_id"`
+	PullRequestName string `json:"pull_request_name"`
+	AuthorID        string `json:"author_id"`
+}
+
+type CreatePRResponse struct {
+	PR PullRequest `json:"pr"`
+}
+
+type MergePRRequest struct {
+	PullRequestID string `json:"pull_request_id"`
+}
+
+type MergePRResponse struct {
+	PR PullRequest `json:"pr"`
 }
 
 type ReassignReviewerRequest struct {
-	OldReviewerID uuid.UUID `json:"oldReviewerId"`
+	PullRequestID string `json:"pull_request_id"`
+	OldUserID     string `json:"old_user_id"`
+}
+
+type ReassignReviewerResponse struct {
+	PR         PullRequest `json:"pr"`
+	ReplacedBy string      `json:"replaced_by"`
+}
+
+type GetReviewResponse struct {
+	UserID       string             `json:"user_id"`
+	PullRequests []PullRequestShort `json:"pull_requests"`
 }

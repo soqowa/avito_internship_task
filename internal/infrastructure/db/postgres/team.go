@@ -3,12 +3,9 @@ package postgres
 import (
 	"context"
 
-	"github.com/google/uuid"
-
 	domain "github.com/user/reviewer-svc/internal/domain"
 	domainteam "github.com/user/reviewer-svc/internal/domain/team"
 )
-
 
 type TeamRepo struct{}
 
@@ -24,7 +21,7 @@ func (r *TeamRepo) Create(ctx context.Context, ttx domain.Tx, t *domainteam.Team
 	return translateError(err)
 }
 
-func (r *TeamRepo) GetByID(ctx context.Context, ttx domain.Tx, id uuid.UUID) (*domainteam.Team, error) {
+func (r *TeamRepo) GetByID(ctx context.Context, ttx domain.Tx, id string) (*domainteam.Team, error) {
 	row := ttx.QueryRow(ctx,
 		"SELECT id, name, created_at FROM teams WHERE id = $1",
 		id,

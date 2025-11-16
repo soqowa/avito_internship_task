@@ -5,8 +5,6 @@ import (
 
 	"log/slog"
 
-	"github.com/google/uuid"
-
 	"github.com/user/reviewer-svc/internal/app/httpserver"
 )
 type Handler struct {
@@ -36,14 +34,9 @@ func (h *Handler) GetAssignmentsStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var teamID *uuid.UUID
+	var teamID *string
 	if v := q.Get("teamId"); v != "" {
-		id, err := uuid.Parse(v)
-		if err != nil {
-			httpserver.WriteError(w, http.StatusBadRequest, "bad_request", "invalid teamId", nil)
-			return
-		}
-		teamID = &id
+		teamID = &v
 	}
 
 	ctx := r.Context()

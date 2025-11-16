@@ -1,13 +1,28 @@
 package users
 
-import "github.com/user/reviewer-svc/internal/domain/user"
+import (
+	"github.com/user/reviewer-svc/internal/domain/team"
+	"github.com/user/reviewer-svc/internal/domain/user"
+)
 
-func toResponse(u user.User) User {
+func toResponse(u user.User, teamName string) User {
 	return User{
-		ID:        u.ID,
-		Name:      u.Name,
-		TeamID:    u.TeamID,
-		IsActive:  u.IsActive,
-		CreatedAt: u.CreatedAt,
+		UserID:   u.ID,
+		Username: u.Name,
+		TeamName: teamName,
+		IsActive: u.IsActive,
+	}
+}
+
+func toResponseWithTeam(u user.User, t team.Team) User {
+	return toResponse(u, t.Name)
+}
+
+func toResponseSimple(u user.User) User {
+	return User{
+		UserID:   u.ID,
+		Username: u.Name,
+		TeamName: "",
+		IsActive: u.IsActive,
 	}
 }

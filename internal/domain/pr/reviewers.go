@@ -2,12 +2,10 @@ package pr
 
 import (
 	"time"
-
-	"github.com/google/uuid"
 )
 
-func (pr PullRequest) BuildExcludeList(targetUserID uuid.UUID) []uuid.UUID {
-	exclude := []uuid.UUID{targetUserID, pr.AuthorID}
+func (pr PullRequest) BuildExcludeList(targetUserID string) []string {
+	exclude := []string{targetUserID, pr.AuthorID}
 	for _, r := range pr.Reviewers {
 		if r.UserID != targetUserID {
 			exclude = append(exclude, r.UserID)
@@ -16,7 +14,7 @@ func (pr PullRequest) BuildExcludeList(targetUserID uuid.UUID) []uuid.UUID {
 	return exclude
 }
 
-func (pr PullRequest) ReplaceReviewer(oldReviewerID, newReviewerID uuid.UUID, assignedAt time.Time) ([]PRReviewer, bool) {
+func (pr PullRequest) ReplaceReviewer(oldReviewerID, newReviewerID string, assignedAt time.Time) ([]PRReviewer, bool) {
 	newReviewers := make([]PRReviewer, len(pr.Reviewers))
 	replaced := false
 
@@ -37,4 +35,3 @@ func NormalizeReviewerSlots(reviewers []PRReviewer) {
 		reviewers[i].Slot = i + 1
 	}
 }
-

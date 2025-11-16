@@ -33,3 +33,7 @@ type Row interface {
 type TxManager interface {
 	WithTx(ctx context.Context, fn func(ctx context.Context, tx Tx) error) error
 }
+
+type IDGenerator interface {
+	Generate() string
+}
