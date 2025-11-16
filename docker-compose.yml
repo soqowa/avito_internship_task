@@ -2,11 +2,11 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: reviewer
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT}:5432"
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "postgres"]
       interval: 5s
@@ -20,14 +20,14 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
-      PORT: "8080"
-      DB_DSN: "postgres://postgres:postgres@postgres:5432/reviewer?sslmode=disable"
-      LOG_LEVEL: "info"
+      PORT: "${APP_PORT}"
+      DB_DSN: "${DB_DSN}"
+      LOG_LEVEL: "${LOG_LEVEL}"
     depends_on:
       postgres:
         condition: service_healthy
     ports:
-      - "8080:8080"
+      - "${APP_PORT}:8080"
     command: ["/app/reviewer-svc"]
 
 volumes:

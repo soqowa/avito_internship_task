@@ -2,10 +2,12 @@
 
 Требуется установленный Docker и Docker Compose.
 
+Перед запуском можно настроить `.env` (порты, DSN к БД, лог‑уровень).
+
 Из корневой директории:
 
 ```bash
 docker-compose up --build
 ```
 
-Сервис будет доступен на `http://localhost:8080`, Postgres — на `localhost:5432` (если порт свободен).
+По умолчанию сервис доступен на `http://localhost:${APP_PORT}` (по умолчанию `8080`), Postgres — на `localhost:${POSTGRES_PORT}` (по умолчанию `5432`).
